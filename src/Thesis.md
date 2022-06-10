@@ -42,10 +42,10 @@
 
 > 如果语言$L$是正则语言，那么存在正整数$N$，对$\forall \in L$，如果$|w| \ge N$，那么可以将$w$分为三部分$w=xyz$满足:
 > 
-> 1. $y\ne \varepsilon$
-> 2. $|xy| \le N$
-> 3. $\forall k \ge 0, xy^kz\in L$
-
+>    1. $y\ne \varepsilon$
+>    2. $|xy| \le N$
+>    3. $\forall k \ge 0, xy^kz\in L$
+    
 那么很明显的我们需要在*Lean*中刻画正则语言及其性质。又联想到上课时泵引理是利用了有穷自动机的有限状态数量和鸽巢原理引入的，所以我们可能需要同时刻画某一种有穷自动机，并且描述有穷自动机与正则语言之间的关系来进行证明。目标与流程很明确了：
 
     1. 定义正则语言并证明一些相关的性质
@@ -83,5 +83,4 @@ instance : has_zero (language α) := ⟨(∅ : set _)⟩
 /- 乘法幺元1，`1: language α` 接受空串的语言 -/
 instance : has_one (language α) := ⟨{[]}⟩
 ```
-
 关于环同态等更多详细的性质可以查阅[实现代码](https://github.com/JohnsonLee-debug/Computability/blob/a8f6eaa77d6b426de64b376a93c0c6bcee2ae672/src/language.lean#L63)
