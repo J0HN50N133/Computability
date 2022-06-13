@@ -41,11 +41,11 @@
 看到问题本身，首先观察Pump Lemma的内容：
 
 > 如果语言$L$是正则语言，那么存在正整数$N$，对$\forall \in L$，如果$|w| \ge N$，那么可以将$w$分为三部分$w=xyz$满足:
-> 
+>
 >    1. $y\ne \varepsilon$
 >    2. $|xy| \le N$
 >    3. $\forall k \ge 0, xy^kz\in L$
-    
+
 那么很明显的我们需要在*Lean*中刻画正则语言及其性质。又联想到上课时泵引理是利用了有穷自动机的有限状态数量和鸽巢原理引入的，所以我们可能需要同时刻画某一种有穷自动机，并且描述有穷自动机与正则语言之间的关系来进行证明。目标与流程很明确了：
 
     1. 定义正则语言并证明一些相关的性质
@@ -57,11 +57,14 @@
 ### 定义正则语言
 
 ```lean
+/- 定义一个universe type -/
 universes v
+/- 定义一些specific type-/
 variables {α β γ : Type*}
 /- 一个语言是一个字母表`α`上的串的集合-/
 @[derive [has_mem (list α), has_singleton (list α), has_insert (list α), complete_boolean_algebra]]
 def language (α) := set (list α)
+/- derive可以理解为常见编程语言里的implement-/
 /- derive some utilities -/
 /- derive complete_boolean_algebra则是因为正则语言可以交并补 -/
 /- A Boolean algebra is a bounded distributive lattice with a complement operator `c`
@@ -74,6 +77,8 @@ def language (α) := set (list α)
 如此我们就构造好了一个正则语言的定义，但是仅有这个定义是没什么用的，我们还需要有一些正则语言的性质和运算，这里我将正则语言视作一个semiring并证明了其相关的性质。
 
 ```lean
+/- instance : `some_type_class` (`specific type`) := `definition` -/
+/- `instance`可以理解为对`specific type`使用`definition`实现`some_type_class`-/
 /- 加法, 并 -/
 instance : has_add (language α) := ⟨(∪)⟩
 /- 乘法, 笛卡尔积 -/
@@ -82,5 +87,48 @@ instance : has_mul (language α) := ⟨image2 (++)⟩
 instance : has_zero (language α) := ⟨(∅ : set _)⟩
 /- 乘法幺元1，`1: language α` 接受空串的语言 -/
 instance : has_one (language α) := ⟨{[]}⟩
+
+/- def 定义一个函数,语法 def 函数名 (参数1: 类型1) (参数2: 类型2) ... (类型n: 参数n) : 返回类型 := 函数体-/
+/- 定义克林闭包运算,这里没有采用结构归纳定义,使用了字符串拼接来定义 -/
+/- 这个定义的意思是：语言`l`的克林闭包里的每一个元素，都可以由`l`里的-/
+/- 任意多个串拼接而成-/
+/- 例如`l={0,1}`, `0101 ∈ l*`, `0101=[0,1,0,1].join`-/
+def star (l : language α) : language α :=
+{x| ∃ S: list (list α), x = S.join ∧ ∀ y∈ S, y ∈ l}
+lemma star_def (l: language α) :
+  l.star = {x| ∃ S: list (list α), x = S.join ∧ ∀ y∈ S, y ∈ l} := rfl
 ```
-关于环同态等更多详细的性质可以查阅[实现代码](https://github.com/JohnsonLee-debug/Computability/blob/a8f6eaa77d6b426de64b376a93c0c6bcee2ae672/src/language.lean#L63)
+关于幂等,环同态等更多详细的性质可以查阅[实现代码](https://github.com/JohnsonLee-debug/Computability/blob/a8f6eaa77d6b426de64b376a93c0c6bcee2ae672/src/language.lean#L63)
+
+### 定义确定性有穷状态自动机
+
+接下来定义DFA, 这里为了和上面定义的正则语言保持一直，字母表同样使用了**类型**进行描述(在原定义中为集合描述)。
+
+```lean
+/- explicit type argument -/
+universes u v
+/-- 按照DFA的形式化定义其五元组表示, 不过这里没有使用集合论而采用了类型论进行表示
+分别为:
+输入符号类型`α`
+状态类型`σ`
+状态转移函数为`tansition`, `σ → α → σ`，可理解为`σ`碰到了`α`转移到新的`σ`
+起始状态是`σ`的一个term
+接受状态`σ`的集合 --/
+structure DFA (α : Type u) (σ : Type v) :=
+  (transition : σ → α → σ)
+  (start : σ)
+  (accept: set σ)
+```
+
+接下来为了让DFA能接收某一个串，我们需要定义在一个DFA上对一个串`l`进行`evaluate`的操作。
+完整实现参考: [DFA.lean](https://github.com/JohnsonLee-debug/Computability/blob/4b45765227c0696335821c4ca539ead5d98d50cf/src/DFA.lean#L20)
+
+```lean
+/- `M.eval_from s input` 对从状态`s`开始读入`input`进行求值 -/
+def eval_from (start : σ) (input: list α) : σ :=
+  list.foldl M.transition start input
+```
+
+这里使用到了`list.foldl`这个函数式编程中常见的高阶函数，有些读者可能不熟悉函数式编程，这里给出`foldl`的数学定义：
+
+$$foldl(f,x,z) = \begin{cases}x&z=[]\\foldl(f,f(x,y),z')&z=y::z'\end{cases}$$
