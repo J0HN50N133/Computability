@@ -1,6 +1,6 @@
-# 如何使用定理辅助证明器*Lean*形式化泵引理的证明过程
+# 使用定理辅助证明器*Lean*形式化泵引理的证明过程
 
-本文实现代码：[Computability](https://github.com/JohnsonLee-debug/Computability)
+本文源代码：https://github.com/JohnsonLee-debug/Computability
 
 ## 背景介绍
 
@@ -41,16 +41,16 @@
 看到问题本身，首先观察Pump Lemma的内容：
 
 > 如果语言$L$是正则语言，那么存在正整数$N$，对$\forall \in L$，如果$|w| \ge N$，那么可以将$w$分为三部分$w=xyz$满足:
->
->    1. $y\ne \varepsilon$
->    2. $|xy| \le N$
->    3. $\forall k \ge 0, xy^kz\in L$
+> 
+> 1. $y\ne \varepsilon$
+> 2. $|xy| \le N$
+> 3. $\forall k \ge 0, xy^kz\in L$
 
 那么很明显的我们需要在*Lean*中刻画正则语言及其性质。又联想到上课时泵引理是利用了有穷自动机的有限状态数量和鸽巢原理引入的，所以我们可能需要同时刻画某一种有穷自动机，并且描述有穷自动机与正则语言之间的关系来进行证明。目标与流程很明确了：
 
-    1. 定义正则语言并证明一些相关的性质
-    2. 定义一种有穷自动机并证明其性质，这里选取了DFA
-    3. 定义泵引理，并证明
+1. 定义正则语言并证明一些相关的性质
+2. 定义一种有穷自动机并证明其性质，这里选取了DFA
+3. 定义泵引理，并证明
 
 ## 解决问题
 
@@ -62,13 +62,15 @@ universes v
 /- 定义一些specific type-/
 variables {α β γ : Type*}
 /- 一个语言是一个字母表`α`上的串的集合-/
-@[derive [has_mem (list α), has_singleton (list α), has_insert (list α), complete_boolean_algebra]]
+@[derive [has_mem (list α), has_singleton (list α),
+    has_insert (list α), complete_boolean_algebra]]
 def language (α) := set (list α)
 /- derive可以理解为常见编程语言里的implement-/
 /- derive some utilities -/
 /- derive complete_boolean_algebra则是因为正则语言可以交并补 -/
-/- A Boolean algebra is a bounded distributive lattice with a complement operator `c`
- - such that `x ⊓ c(x) = ⊥` and `x ⊔ x = ⊤`. For convenience, it must also provice a set
+/- A Boolean algebra is a bounded distributive lattice with a complement
+ - operator `c` such that `x ⊓ c(x) = ⊥` and `x ⊔ x = ⊤`.
+ - For convenience, it must also provice a set
  - difference operation '\' statisfying `x \ y = x ⊓ c(y)`
  - 布尔代数:https://zh.wikipedia.org/wiki/%E5%B8%83%E5%B0%94%E4%BB%A3%E6%95%B0
  -/
@@ -88,16 +90,20 @@ instance : has_zero (language α) := ⟨(∅ : set _)⟩
 /- 乘法幺元1，`1: language α` 接受空串的语言 -/
 instance : has_one (language α) := ⟨{[]}⟩
 
-/- def 定义一个函数,语法 def 函数名 (参数1: 类型1) (参数2: 类型2) ... (类型n: 参数n) : 返回类型 := 函数体-/
+/- def 定义一个函数,语法:
+ - def 函数名 (参数1: 类型1) ... (类型n: 参数n) : 返回类型 := 函数体-/
+
 /- 定义克林闭包运算,这里没有采用结构归纳定义,使用了字符串拼接来定义 -/
 /- 这个定义的意思是：语言`l`的克林闭包里的每一个元素，都可以由`l`里的-/
 /- 任意多个串拼接而成-/
 /- 例如`l={0,1}`, `0101 ∈ l*`, `0101=[0,1,0,1].join`-/
 def star (l : language α) : language α :=
 {x| ∃ S: list (list α), x = S.join ∧ ∀ y∈ S, y ∈ l}
+/- 对于lemma`:=`的左边是定理定义，右边是对该定理的一个证明 -/
 lemma star_def (l: language α) :
   l.star = {x| ∃ S: list (list α), x = S.join ∧ ∀ y∈ S, y ∈ l} := rfl
 ```
+
 关于幂等,环同态等更多详细的性质可以查阅[实现代码](https://github.com/JohnsonLee-debug/Computability/blob/a8f6eaa77d6b426de64b376a93c0c6bcee2ae672/src/language.lean#L63)
 
 ### 定义确定性有穷状态自动机
@@ -120,7 +126,7 @@ structure DFA (α : Type u) (σ : Type v) :=
   (accept: set σ)
 ```
 
-接下来为了让DFA能接收某一个串，我们需要定义在一个DFA上对一个串`l`进行`evaluate`的操作。
+接下来定义什么是能被DFA接受的语言，我们需要定义在一个DFA上对一个串`l`进行`evaluate`的操作。
 完整实现参考: [DFA.lean](https://github.com/JohnsonLee-debug/Computability/blob/4b45765227c0696335821c4ca539ead5d98d50cf/src/DFA.lean#L20)
 
 ```lean
@@ -132,3 +138,177 @@ def eval_from (start : σ) (input: list α) : σ :=
 这里使用到了`list.foldl`这个函数式编程中常见的高阶函数，有些读者可能不熟悉函数式编程，这里给出`foldl`的数学定义：
 
 $$foldl(f,x,z) = \begin{cases}x&z=[]\\foldl(f,f(x,y),z')&z=y::z'\end{cases}$$
+
+有了`eval_from`这一从任意状态开始在DFA上开始evaluate的函数就可以定义从DFA的起始状态开始求值的函数了，只需将`eval_from`的`start`设为状态机的初始状态`M.start`即可。同时我们可以看出DFA对一个串求值的过程会产生一条状态的trace，这将是我们后面发现泵引理的关键。
+
+```lean
+def eval : list α → σ := M.eval_from M.start
+```
+
+离我们定义什么是能被DFA接收的语言的目标又近了一步，可以知道一个语言若能被DFA接收，即其中所有的串都能被DFA接收，于是就能写出下面的定义
+
+```lean
+/- `M.accepts x`能接受`x`，如果对于`x`有`M.eval x ∈ M.accept` -/
+def accepts : language α :=
+  λ x, M.eval x ∈ M.accept
+/- 以及对应的定理 -/
+lemma mem_accepts (x : list α) 
+    : x ∈ M.accepts ↔ M.eval_from M.start x ∈ M.accept := by refl
+```
+
+有了这些基本元素我们就可以正式开始对泵引理进行证明了
+
+### 泵引理引入、定义和证明
+
+首先来回顾一下泵引理的直观定义：
+
+![Pump Lemma Intuition](./.asset/pump_lemma.png)
+
+从这个图我们可以将泵引理的证明拆分为两个部分：
+
+1. 利用鸽巢原理，证明当串的长度大于等于自动机的状态数量时，该自动机运行的trace能被拆分为三部分$xyz$并且$y$是一个环，这描述了串的可拆性。
+2. 这个环$y$走0次或更多次都会回到$P_i$，即描述了$y$的可泵性。
+
+那我们将这两个子命题进行定义和证明，最后再组合出泵引理即可。
+
+**可拆分性定义与证明**
+
+```lean
+/- fintype说明σ是有限的类型(集合)而非无限的类型(集合) -/
+/- `M`为DFA，`x`为串，s和t分别为eval的起始状态和终结状态 -/
+lemma eval_from_split [fintype σ] {x : list α} {s t : σ}
+/- `card`是cardinal的缩写，这里描述了串`x`的长度大于等于σ -/
+(hlen : fintype.card σ ≤ x.length)
+/- `x`从状态`s`走到`t`-/
+(hx : M.eval_from s x = t) :
+/- 存在中间状态`q`和`a b c`-/
+∃ q a b c,
+/- x 能拆分为abc-/
+x = a ++ b ++ c ∧
+/- |ab| ≤ N,即在算完前`N`个字符之前一定出现了a和b -/
+a.length + b.length ≤ fintype.card σ ∧
+/- b ≠ ε -/
+b ≠ [] ∧
+/- a从s走到q -/
+M.eval_from s a = q ∧
+/- b从q绕回q -/
+M.eval_from q b = q ∧
+/- c从q走到t -/
+M.eval_from q c = t :=
+begin
+  /- 利用fintype上的鸽巢原理(鸽子和鸽巢都是有限的) -/
+  /- 那么有长度n和m, n和m不等,-/
+  /- 且`M.eval_from s (x.take n)` = `M.eval_from s (x.take m)`-/
+  /- 这里是为了描述a和ab都走到q -/
+  obtain ⟨n, m, hneq, heq⟩ := fintype.exists_ne_map_eq_of_card_lt
+  (λ n : fin (fintype.card σ + 1), M.eval_from s (x.take n)) (by norm_num),
+  /- 不失一般性，我们可以假设n≤m -/
+  wlog hle : (n : ℕ) ≤ m using n m,
+  /- 又已经知道n和m不等了，所以n<m -/
+  have hlt : (n : ℕ) < m := (ne.le_iff_lt hneq).mp hle,
+  /- m: (fin |σ| + 1) ≤ |σ|, n < m < |σ| -/
+  have hm : (m : ℕ) ≤ fintype.card σ := fin.is_le m,
+  dsimp at heq,
+
+  /- 那么q,a,b,c就都找到了, 分别是:-/
+  /- q = M.eval_from s (x.take m).take n = M.eval_from s (x.take n)-/
+  /- a = x.take m-/
+  /- b = (x.take m).drop n-/
+  /- c = x.drop m -/
+  refine ⟨M.eval_from s ((x.take m).take n),
+    (x.take m).take n, (x.take m).drop n, x.drop m,
+    _, _, _, by refl, _⟩,
+
+  /- subgoal 1: x = a ++ b ++ c -/
+  { rw [list.take_append_drop, list.take_append_drop] },
+
+  /- subgoal 2: |ab| ≤ N -/
+  { simp only [list.length_drop, list.length_take],
+    rw [min_eq_left (hm.trans hlen), min_eq_left hle, add_tsub_cancel_of_le hle],
+    exact hm },
+
+  /- subgoal 3: |b| ≠ 0 -/
+  { intro h,
+    have hlen' := congr_arg list.length h,
+    simp only [list.length_drop, list.length, list.length_take] at hlen',
+    rw [min_eq_left, tsub_eq_zero_iff_le] at hlen',
+    { apply hneq,
+      apply le_antisymm,
+      assumption' },
+    exact hm.trans hlen, },
+
+  /- b从q绕回q -/
+  have hq :
+    M.eval_from (M.eval_from s ((x.take m).take n)) ((x.take m).drop n) =
+      M.eval_from s ((x.take m).take n),
+  { rw [list.take_take, min_eq_left hle, ←eval_from_of_append, heq, ←min_eq_left hle,
+        ←list.take_take, min_eq_left hle, list.take_append_drop] },
+
+  use hq,
+  rwa [←hq, ←eval_from_of_append, ←eval_from_of_append,
+  ←list.append_assoc, list.take_append_drop, list.take_append_drop]
+end
+```
+
+**可泵性定义与证明**
+
+```lean
+/- x绕回来了,多用几个x多绕几圈或者不绕 -/
+lemma eval_from_of_pow {x y : list α}
+    {s : σ}
+    /- x从s走回s -/
+    (hx : M.eval_from s x = s)
+    /- y是x*里的一个串 -/
+    (hy : y ∈ @language.star α {x}) : M.eval_from s y = s :=
+begin
+  rw language.mem_star at hy,
+  rcases hy with ⟨ S, rfl, hS ⟩,
+  induction S with a S ih,
+  /- y是空串 -/
+  { refl },
+  /- y = y' ++ x -/
+  { have ha := hS a (list.mem_cons_self _ _),
+    rw set.mem_singleton_iff at ha,
+    rw [list.join, eval_from_of_append, ha, hx],
+    apply ih,
+    intros z hz,
+    exact hS z (list.mem_cons_of_mem a hz) }
+  /- 一个简单的induction证明 -/
+end
+```
+
+**组装出泵引理**
+
+```
+/- pump lemma的证明-/
+/- 同样先限定σ是个finite type, x是α上的串, hx表明该串能被M接收-/
+/- hlen表明x的长度要大于等于|σ|(也就是pump lemma里说的那个`N`)-/
+/- 然后用∃对串进行拆分-/
+lemma pumping_lemma [fintype σ] {x : list α} (hx : x ∈ M.accepts)
+  (hlen : fintype.card σ ≤ list.length x) :
+  ∃ a b c, x = a ++ b ++ c ∧ a.length + b.length ≤ fintype.card σ ∧ b ≠ [] ∧
+  {a} * language.star {b} * {c} ≤ M.accepts :=
+begin
+/- 首先利用上面的辅助定理`eval_from_split`进行拆分找到abc并获取相应的结论-/
+  obtain ⟨_, a, b, c, hx, hlen, hnil, rfl, hb, hc⟩ := M.eval_from_split hlen rfl,
+  use [a, b, c, hx, hlen, hnil],
+  intros y hy,
+/-拆分hy-/
+  rw language.mem_mul at hy,
+  rcases hy with ⟨ ab, c', hab, hc', rfl ⟩,
+  rw language.mem_mul at hab,
+/-再拆hab-/
+  rcases hab with ⟨ a', b', ha', hb', rfl ⟩,
+  rw set.mem_singleton_iff at ha' hc',
+  substs ha' hc',
+/- 再利用eval_from_of_pow进行泵进泵出 -/
+  have h := M.eval_from_of_pow hb hb',
+  rwa [mem_accepts, eval_from_of_append, eval_from_of_append, h, hc]
+end
+```
+
+## 总结与展望
+
+本文使用Lean建模了DFA和正则语言并对泵引理进行了证明，旨在给予《计算理论基础》这一课程一个教学的新思路。利用交互式定理证明器我们可以更直观的看到定理的证明过程，更加形式化地写下一个定理的证明。由于交互式定理证明器的特点，它消除了我们在纸面书写证明过程时的不确定性，能更好的帮助我们检查自己证明的思路是否正确，以及我们是否真的完成了定理的证明。
+
+或许未来我们可以在这一门课中引入交互式定理证明器的使用，课程涉及到的定理及证明过程可以由教师使用交互式定理证明器进行形式化，学生可以通过对证明代码的逐步阅读与调试完全理解证明的过程，同时因为定理证明器需要证明的每一步都是无二义性的，这消除了我们在理解过程中的歧义，有助于强化严谨的数学思维。同时课后的习题也可以利用交互式定理证明器进行布置，教师将习题定义好，交由学生去进行证明，在批改作业时只需使用程序即可快速检查学生的习题完成情况，对于减轻教学负担也有一定的好处。
